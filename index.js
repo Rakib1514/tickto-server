@@ -1,5 +1,4 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
@@ -112,7 +111,9 @@ async function run() {
         const updatedUser = req.body;
 
         if (!updatedUser || Object.keys(updatedUser).length === 0) {
-          return res.status(400).json({success: false, message: "User data is required" });
+          return res
+            .status(400)
+            .json({ success: false, message: "User data is required" });
         }
 
         const result = await userCollection.updateOne(
@@ -123,15 +124,23 @@ async function run() {
         console.log(result);
 
         if (result.modifiedCount > 0) {
-          res.status(200).json({ success: true, message: "User updated successfully" });
-        } else if(result.matchedCount > 0 && result.modifiedCount === 0) {
-          res.status(200).json({ success: false, message: "Already up to date" });
+          res
+            .status(200)
+            .json({ success: true, message: "User updated successfully" });
+        } else if (result.matchedCount > 0 && result.modifiedCount === 0) {
+          res
+            .status(200)
+            .json({ success: false, message: "Already up to date" });
         } else {
-          res.status(500).json({ success: false, message: "Failed to update user" });
+          res
+            .status(500)
+            .json({ success: false, message: "Failed to update user" });
         }
       } catch (error) {
         console.error("Error updating user:", error);
-        res.status(500).json({success: false, message: "Internal server error" });
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
       }
     });
 
@@ -139,18 +148,18 @@ async function run() {
     app.delete("/api/users/:uid", async (req, res) => {
       try {
         const uid = req.params.uid;
-        const result = await userCollection.deleteOne({ uid: uid });
-
-        console.log(result);
+        const result = await userCollection.deleteOne({ uid });
 
         if (result.deletedCount > 0) {
           res.json({ success: true, message: "User deleted successfully" });
         } else {
-          res.status(500).json({ error: "Failed to delete user" });
+          res.status(404).json({ success: false, message: "User not found" });
         }
       } catch (error) {
         console.error("Error deleting user:", error);
-        res.status(500).json({ error: "Internal server error" });
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
       }
     });
 
