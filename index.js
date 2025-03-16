@@ -1,5 +1,4 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
@@ -154,7 +153,7 @@ async function run() {
         if (result.deletedCount > 0) {
           res.json({ success: true, message: "User deleted successfully" });
         } else {
-          res.status(404).json({ success: false, message: "User not found" }); 
+          res.status(404).json({ success: false, message: "User not found" });
         }
       } catch (error) {
         console.error("Error deleting user:", error);
