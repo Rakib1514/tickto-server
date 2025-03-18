@@ -24,6 +24,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     const userCollection = client.db("tickto").collection("users");
+    const eventsCollection = client.db("tickto").collection("events");
 
     // ! Users Related API's
 
@@ -160,6 +161,98 @@ async function run() {
         res
           .status(500)
           .json({ success: false, message: "Internal server error" });
+      }
+    });
+
+    // ! Events Related API's
+
+    // get events
+    app.get("/api/events", async (req, res) => {
+      try {
+        const events = await eventsCollection.find({}).toArray();
+        if (events.length > 0) {
+          res.status(200).json({
+            success: true,
+            data: events,
+            message: "Events fetched successfully",
+          });
+        } else {
+          res.status(404).json({ success: false, message: "No events found" });
+        }
+      } catch (error) {
+        console.error("Error fetching events:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
+      }
+    });
+
+    //Post a event
+    app.post("/api/events", async (req, res) => {
+      try {
+        const newEvent = req.body;
+
+        if (!newEvent || Object.keys(newEvent).length === 0) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Event data is required" });
+        }
+
+        const result = await eventsCollection.insertOne(newEvent);
+
+        if (result.insertedId) {
+          res.status(201).json({
+            success: true,
+            insertedId: result.insertedId,
+            message: "Event created successfully",
+          });
+        } else {
+          res
+            .status(500)
+            .json({ success: false, message: "Failed to create event" });
+        }
+      } catch (error) {
+        console.error("Error creating event:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
+      }
+    });
+
+    // ! get all category
+    app.get("/api/categories", async (req, res) => {
+      try {
+        const categories = await eventsCollection.aggregate([
+          {
+            $group: {
+              _id: "$subCategory",
+              count: { $sum: 1 } // Add count of documents per category
+            }
+          },
+          {
+            $sort: { count: -1 } // Sort descending by count
+          },
+          {
+            $project: {
+              _id: 0,
+              subCategory: "$_id",
+              // count: 1 // Optional: include count if needed
+            }
+          }
+        ]).toArray();
+    
+        if (categories.length > 0) {
+          res.status(200).json({
+            success: true,
+            data: categories,
+            message: "Categories fetched successfully",
+          });
+        } else {
+          res.status(404).json({ success: false, message: "No categories found" });
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
       }
     });
 
