@@ -169,7 +169,26 @@ async function run() {
     // get events
     app.get("/api/events", async (req, res) => {
       try {
-        const events = await eventsCollection.find({}).toArray();
+        const events = await eventsCollection.aggregate([
+          {
+            $group: {
+              _id: { category: "$category", subCategory: "$subCategory" },
+              data: { $push: "$$ROOT" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              category: "$_id.category",
+              subCategory: "$_id.subCategory",
+              data: 1,
+              dataCount: { $size: "$data" }, 
+            },
+          },
+          {
+            $sort: { dataCount: -1 },
+          },
+        ]).toArray();
         if (events.length > 0) {
           res.status(200).json({
             success: true,
@@ -219,28 +238,32 @@ async function run() {
       }
     });
 
+    // custom events data category wise get
+
     // ! get all category
     app.get("/api/categories", async (req, res) => {
       try {
-        const categories = await eventsCollection.aggregate([
-          {
-            $group: {
-              _id: "$subCategory",
-              count: { $sum: 1 } // Add count of documents per category
-            }
-          },
-          {
-            $sort: { count: -1 } // Sort descending by count
-          },
-          {
-            $project: {
-              _id: 0,
-              subCategory: "$_id",
-              // count: 1 // Optional: include count if needed
-            }
-          }
-        ]).toArray();
-    
+        const categories = await eventsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: "$subCategory",
+                count: { $sum: 1 }, // Add count of documents per category
+              },
+            },
+            {
+              $sort: { count: -1 }, // Sort descending by count
+            },
+            {
+              $project: {
+                _id: 0,
+                subCategory: "$_id",
+                // count: 1 // Optional: include count if needed
+              },
+            },
+          ])
+          .toArray();
+
         if (categories.length > 0) {
           res.status(200).json({
             success: true,
@@ -248,11 +271,15 @@ async function run() {
             message: "Categories fetched successfully",
           });
         } else {
-          res.status(404).json({ success: false, message: "No categories found" });
+          res
+            .status(404)
+            .json({ success: false, message: "No categories found" });
         }
       } catch (error) {
         console.error("Error fetching categories:", error);
-        res.status(500).json({ success: false, message: "Internal server error" });
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
       }
     });
 
