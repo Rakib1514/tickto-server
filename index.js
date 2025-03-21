@@ -166,29 +166,31 @@ async function run() {
 
     // ! Events Related API's
 
-    // get events
+    // get events :: Custom Projection
     app.get("/api/events", async (req, res) => {
       try {
-        const events = await eventsCollection.aggregate([
-          {
-            $group: {
-              _id: { category: "$category", subCategory: "$subCategory" },
-              data: { $push: "$$ROOT" },
+        const events = await eventsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: { category: "$category", subCategory: "$subCategory" },
+                data: { $push: "$$ROOT" },
+              },
             },
-          },
-          {
-            $project: {
-              _id: 0,
-              category: "$_id.category",
-              subCategory: "$_id.subCategory",
-              data: 1,
-              dataCount: { $size: "$data" }, 
+            {
+              $project: {
+                _id: 0,
+                category: "$_id.category",
+                subCategory: "$_id.subCategory",
+                data: 1,
+                dataCount: { $size: "$data" },
+              },
             },
-          },
-          {
-            $sort: { dataCount: -1 },
-          },
-        ]).toArray();
+            {
+              $sort: { dataCount: -1 },
+            },
+          ])
+          .toArray();
         if (events.length > 0) {
           res.status(200).json({
             success: true,
@@ -205,6 +207,31 @@ async function run() {
           .json({ success: false, message: "Internal server error" });
       }
     });
+
+    // get Category wise events
+    app.get("/api/events/:category", async (req, res) => {
+      try {
+        const category = req.params.category;
+        const events = await eventsCollection.find({subCategory: category  }).toArray();
+        if (events.length > 0) {
+          res.status(200).json({
+            success: true,
+            data: events,
+            message: "Events fetched successfully",
+          });
+        } else {
+          res
+            .status(404)
+            .json({ success: false, message: "No events found for category" });
+        }
+      } catch (error) {
+        console.error("Error fetching events:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
+      }
+    });
+
 
     //Post a event
     app.post("/api/events", async (req, res) => {
