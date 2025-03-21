@@ -232,7 +232,6 @@ async function run() {
       }
     });
 
-
     //Post a event
     app.post("/api/events", async (req, res) => {
       try {
@@ -266,7 +265,6 @@ async function run() {
     });
 
     // custom events data category wise get
-
     // ! get all category
     app.get("/api/categories", async (req, res) => {
       try {
