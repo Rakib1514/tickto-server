@@ -1,7 +1,7 @@
 const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
 
@@ -212,7 +212,9 @@ async function run() {
     app.get("/api/events/:category", async (req, res) => {
       try {
         const category = req.params.category;
-        const events = await eventsCollection.find({subCategory: category  }).toArray();
+        const events = await eventsCollection
+          .find({ subCategory: category })
+          .toArray();
         if (events.length > 0) {
           res.status(200).json({
             success: true,
@@ -226,6 +228,30 @@ async function run() {
         }
       } catch (error) {
         console.error("Error fetching events:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
+      }
+    });
+
+    // Get single event by id
+    app.get("/api/event/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
+        if (!event) {
+          return res
+            .status(404)
+            .json({ success: false, message: "Event not found" });
+        } else {
+          res.status(200).json({
+            success: true,
+            data: event,
+            message: "Event fetched successfully",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching event:", error);
         res
           .status(500)
           .json({ success: false, message: "Internal server error" });
