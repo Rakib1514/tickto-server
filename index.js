@@ -2,6 +2,7 @@ const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 
@@ -25,6 +26,7 @@ async function run() {
   try {
     const userCollection = client.db("tickto").collection("users");
     const eventsCollection = client.db("tickto").collection("events");
+    const paymentsCollection = client.db("tickto").collection("payments");
 
     // ! Users Related API's
 
@@ -334,7 +336,48 @@ async function run() {
       }
     });
 
+
+    
+
     //
+
+    //payment intent
+    app.post('/create-payment-intent', async(req, res) =>{
+      const {price} = req.body;
+      const amount = parseInt(price * 100);
+      console.log('amount test--->',amount);
+    
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: 'usd',
+      payment_method_types: ['card'],
+    });
+
+    res.send({
+      clientSecret: paymentIntent.client_secret
+    })
+    });
+
+    //payment related api
+    app.post('/payments', async(req, res) =>{
+      const payment = req.body;
+      const paymentResult = await paymentsCollection.insertOne(payment);
+
+      //carefully delete the event from events collection
+      console.log('payment info--->', payment);
+      res.send(paymentResult);
+
+    });
+
+    app.get('/payments/:email', async(req, res) =>{
+      const query = { email: req.params.email};
+      if(req.params.email !== req.params.email){
+        return res.status(403).send({ message: 'forbidden access'});
+      }
+      const result = await paymentsCollection.find(query).toArray();
+      res.send(result);
+    })
+
     //
   } finally {
     //
