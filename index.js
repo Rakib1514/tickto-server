@@ -145,6 +145,19 @@ async function run() {
       }
     });
 
+    // Make admin user by uid
+    app.patch('/api/users/:uid', async(req, res) => {
+      const filter = {_id: new ObjectId(id)};
+      const updateUser = {
+        $set: {
+          role: 'admin'
+        }
+      }
+      const result = await userCollection.updateOne(filter, updateUser);
+      res.send(result)
+    })
+
+
     // Delete user by uid
     app.delete("/api/users/:uid", async (req, res) => {
       try {
