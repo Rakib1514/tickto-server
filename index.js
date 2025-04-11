@@ -34,11 +34,28 @@ async function run() {
       const token = jwt.sign(user, process.env.TOKEN_SECRET_KEY,
         {expiresIn: '1h'});
       res.send({ token });
-    })
+    });
+
+    //middlewares 
+    const verifyToken = (req, res, next) => {
+      console.log('Inside verify token', req.headers.authorization);
+      if(!req.headers.authorization){
+        return res.status(401).send({ message: 'forbidden access' });
+      }
+      const token = req.headers.authorization.split(' ')[1];
+      jwt.verify(token, process.env.TOKEN_SECRET_KEY, (err, decoded) => {
+        if(err){
+          return res.status(401).send({ message: 'forbidden access' })
+        }
+        req.decoded = decoded;
+        next();
+      })
+      // next();
+    }
 
     // ! Users Related API's
 
-    app.get("/api/users", async (req, res) => {
+    app.get("/api/users", verifyToken, async (req, res) => {
       console.log(req.headers);
       try {
         const users = await userCollection.find({}).toArray();
