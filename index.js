@@ -2,7 +2,7 @@ const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
 const jwt = require('jsonwebtoken');
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId, Admin } = require("mongodb");
 
 const app = express();
 
@@ -40,12 +40,12 @@ async function run() {
     const verifyToken = (req, res, next) => {
       console.log('Inside verify token', req.headers.authorization);
       if(!req.headers.authorization){
-        return res.status(401).send({ message: 'forbidden access' });
+        return res.status(401).send({ message: 'unauthorized access' });
       }
       const token = req.headers.authorization.split(' ')[1];
       jwt.verify(token, process.env.TOKEN_SECRET_KEY, (err, decoded) => {
         if(err){
-          return res.status(401).send({ message: 'forbidden access' })
+          return res.status(401).send({ message: 'unauthorized access' })
         }
         req.decoded = decoded;
         next();
@@ -98,6 +98,21 @@ async function run() {
           .json({ success: false, message: "Internal server error" });
       }
     });
+
+    app.get('/api/users/admin/:email', verifyToken, async(req, res) => {
+      const email = req.params.email;
+      if(email !== req.decoded.email){
+        return res.status(403).send({ message: "forbidden access" })
+      }
+
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = false;
+      if(user) {
+        admin = user?.role === 'admin';
+      }
+      res.send({ admin });
+    })
 
     // Post User data to DB
     app.post("/api/users", async (req, res) => {
