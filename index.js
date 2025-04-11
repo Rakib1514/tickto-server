@@ -1,6 +1,7 @@
 const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
+const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
@@ -26,9 +27,19 @@ async function run() {
     const userCollection = client.db("tickto").collection("users");
     const eventsCollection = client.db("tickto").collection("events");
 
+    //!jwt related API's
+
+    app.post('/jwt', async(req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.TOKEN_SECRET_KEY,
+        {expiresIn: '1h'});
+      res.send({ token });
+    })
+
     // ! Users Related API's
 
     app.get("/api/users", async (req, res) => {
+      console.log(req.headers);
       try {
         const users = await userCollection.find({}).toArray();
         if (users.length > 0) {
