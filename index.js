@@ -448,7 +448,30 @@ async function run() {
       }
       const result = await paymentsCollection.find(query).toArray();
       res.send(result);
-    })
+    });
+
+    // All payment get end API
+app.get('/payments', async (req, res) => {
+  try {
+    const payments = await paymentsCollection.find().toArray();
+    
+    res.status(200).send({
+      success: true,
+      data: payments,
+      message: payments.length > 0 
+        ? 'Payments fetched successfully'
+        : 'No payments found'
+    });
+
+  } catch (error) {
+    console.error('Error fetching payments.', error);
+    res.status(500).send({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 
     //
   } finally {
