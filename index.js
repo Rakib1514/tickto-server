@@ -1,7 +1,7 @@
 const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId, Admin } = require("mongodb");
 
 const app = express();
@@ -26,50 +26,51 @@ async function run() {
   try {
     const userCollection = client.db("tickto").collection("users");
     const eventsCollection = client.db("tickto").collection("events");
+    const busCollection = client.db("tickto").collection("bus");
+    const tripCollection = client.db("tickto").collection("trips");
 
     //!jwt related API's
 
-    app.post('/jwt', async(req, res) => {
+    app.post("/jwt", async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.TOKEN_SECRET_KEY,
-        {expiresIn: '1h'});
+      const token = jwt.sign(user, process.env.TOKEN_SECRET_KEY, {
+        expiresIn: "1h",
+      });
       res.send({ token });
     });
 
-    //middlewares 
+    //middlewares
     const verifyToken = (req, res, next) => {
-      console.log('Inside verify token', req.headers.authorization);
-      if(!req.headers.authorization){
-        return res.status(401).send({ message: 'unauthorized access' });
+      console.log("Inside verify token", req.headers.authorization);
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "unauthorized access" });
       }
-      const token = req.headers.authorization.split(' ')[1];
+      const token = req.headers.authorization.split(" ")[1];
       jwt.verify(token, process.env.TOKEN_SECRET_KEY, (err, decoded) => {
-        if(err){
-          return res.status(401).send({ message: 'unauthorized access' })
+        if (err) {
+          return res.status(401).send({ message: "unauthorized access" });
         }
         req.decoded = decoded;
         next();
-      })
-
-    }
+      });
+    };
 
     //use verify admin after verifyToken
-    
-    const verifyAdmin = async(req, res, next) => {
+
+    const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = {email: email};
+      const query = { email: email };
       const user = await userCollection.findOne(query);
-      const isAdmin = user?.role === 'admin';
-      if(!isAdmin){
-        return res.status(403).send({ message: 'forbidden access' });
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
       }
       next();
-    }
+    };
 
     // ! Users Related API's
 
     app.get("/api/users", verifyToken, verifyAdmin, async (req, res) => {
-      console.log(req.headers);
       try {
         const users = await userCollection.find({}).toArray();
         if (users.length > 0) {
@@ -112,20 +113,20 @@ async function run() {
       }
     });
 
-    app.get('/api/users/admin/:email', verifyToken, async(req, res) => {
+    app.get("/api/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      if(email !== req.decoded.email){
-        return res.status(403).send({ message: "forbidden access" })
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
       }
 
       const query = { email: email };
       const user = await userCollection.findOne(query);
       let admin = false;
-      if(user) {
-        admin = user?.role === 'admin';
+      if (user) {
+        admin = user?.role === "admin";
       }
       res.send({ admin });
-    })
+    });
 
     // Post User data to DB
     app.post("/api/users", async (req, res) => {
@@ -202,37 +203,48 @@ async function run() {
     });
 
     // Make admin user by uid
-    app.patch('/api/users/admin/:uid', verifyToken, verifyAdmin, async(req, res) => {
-      const id = req.params.uid;
-      const filter = { _id: new ObjectId(id) };
-      const updateUser = {
-        $set: {
-          role: 'admin'
-        }
+    app.patch(
+      "/api/users/admin/:uid",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.uid;
+        const filter = { _id: new ObjectId(id) };
+        const updateUser = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await userCollection.updateOne(filter, updateUser);
+        res.send(result);
       }
-      const result = await userCollection.updateOne(filter, updateUser);
-      res.send(result)
-    })
-
+    );
 
     // Delete user by uid
-    app.delete("/api/users/:uid", verifyToken, verifyAdmin, async (req, res) => {
-      try {
-        const uid = req.params.uid;
-        const result = await userCollection.deleteOne({ _id: new ObjectId(uid) });
+    app.delete(
+      "/api/users/:uid",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const uid = req.params.uid;
+          const result = await userCollection.deleteOne({
+            _id: new ObjectId(uid),
+          });
 
-        if (result.deletedCount > 0) {
-          res.json({ success: true, message: "User deleted successfully" });
-        } else {
-          res.status(404).json({ success: false, message: "User not found" });
+          if (result.deletedCount > 0) {
+            res.json({ success: true, message: "User deleted successfully" });
+          } else {
+            res.status(404).json({ success: false, message: "User not found" });
+          }
+        } catch (error) {
+          console.error("Error deleting user:", error);
+          res
+            .status(500)
+            .json({ success: false, message: "Internal server error" });
         }
-      } catch (error) {
-        console.error("Error deleting user:", error);
-        res
-          .status(500)
-          .json({ success: false, message: "Internal server error" });
       }
-    });
+    );
 
     // ! Events Related API's
 
@@ -401,6 +413,133 @@ async function run() {
         res
           .status(500)
           .json({ success: false, message: "Internal server error" });
+      }
+    });
+
+    // ! Bus Releted api
+
+    app.post("/api/buses", async (req, res) => {
+      const busInfo = req.body;
+      const result = await busCollection.insertOne(busInfo);
+      res.send(result);
+    });
+
+    app.get("/api/buses/:uid", async (req, res) => {
+      const uid = req.params.uid;
+      const query = { organizerID: uid };
+      const buses = await busCollection.find(query).toArray();
+      res.send(buses);
+    });
+
+    // ! Trip Related apis
+
+    app.post("/api/trips", async (req, res) => {
+      const tripInfo = req.body;
+      const result = await tripCollection.insertOne(tripInfo);
+      res.send(result);
+    });
+
+    // ! Transport related api
+
+    const { ObjectId } = require("mongodb");
+
+    app.get("/api/trips/bus", async (req, res) => {
+      try {
+        const trips = await tripCollection
+          .aggregate([
+            {
+              $addFields: {
+                busObjectId: { $toObjectId: "$busId" },
+              },
+            },
+            {
+              $lookup: {
+                from: "bus",
+                localField: "busObjectId",
+                foreignField: "_id",
+                as: "busDetails",
+              },
+            },
+            {
+              $unwind: "$busDetails",
+            },
+            {
+              $sort: { departureTime: 1 },
+            },
+          ])
+          .toArray();
+
+        res.send(trips);
+      } catch (error) {
+        console.error("Aggregation error:", error);
+        res.status(500).send({ message: "Failed to fetch trips with buses" });
+      }
+    });
+
+    // ! Trip Search
+
+    app.get("/api/location", async (req, res) => {
+      const { from, to } = req.query;
+
+      // Validate parameters
+      if (!from && !to) {
+        return res.status(400).send({
+          error: "Please provide either 'from' or 'to' parameter",
+        });
+      }
+
+      if (from && to) {
+        return res.status(400).send({
+          error: "Please provide only one parameter ('from' or 'to')",
+        });
+      }
+
+      // Determine search type and get search text
+      const searchType = from ? "from" : "to";
+      const searchText = from || to;
+      const field = searchType === "from" ? "origin" : "destination";
+
+      // Input validation
+      if (!searchText || searchText.trim().length < 2) {
+        return res.status(400).send({
+          error: `Please provide at least 2 characters for ${searchType}`,
+        });
+      }
+
+      // Sanitize input
+      const sanitizedSearch = searchText.replace(/[^\w\s]/gi, "");
+
+      try {
+        const pipeline = [
+          {
+            $match: {
+              [field]: {
+                $regex: `^${sanitizedSearch}`,
+                $options: "i",
+              },
+            },
+          },
+          {
+            $group: {
+              _id: `$${field}`, // Group by the field to get unique values
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              value: "$_id", // Rename _id to value
+            },
+          },
+          { $limit: 10 },
+        ];
+
+        const results = await tripCollection.aggregate(pipeline).toArray();
+
+        // Extract just the values from the results
+        res.send(results.map((item) => item.value));
+      } catch (error) {
+        console.error("Database error:", error);
+        res.status(500).send({ error: "Internal server error" });
       }
     });
 
