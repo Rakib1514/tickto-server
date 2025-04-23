@@ -416,7 +416,7 @@ async function run() {
       }
     });
 
-    // ! Bus Releted api
+    // ! Bus Related api
 
     app.post("/api/buses", async (req, res) => {
       const busInfo = req.body;
