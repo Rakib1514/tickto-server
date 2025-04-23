@@ -441,40 +441,156 @@ async function run() {
 
     // ! Transport related api
 
-    const { ObjectId } = require("mongodb");
+    // app.get("/api/trips/bus", async (req, res) => {
+    //   try {
+    //     const trips = await tripCollection
+    //       .aggregate([
+    //         {
+    //           $addFields: {
+    //             busObjectId: { $toObjectId: "$busId" },
+    //           },
+    //         },
+    //         {
+    //           $lookup: {
+    //             from: "bus",
+    //             localField: "busObjectId",
+    //             foreignField: "_id",
+    //             as: "busDetails",
+    //           },
+    //         },
+    //         {
+    //           $unwind: "$busDetails",
+    //         },
+    //         {
+    //           $sort: { departureTime: 1 },
+    //         },
+    //       ])
+    //       .toArray();
+
+    //     res.send(trips);
+    //   } catch (error) {
+    //     console.error("Aggregation error:", error);
+    //     res.status(500).send({ message: "Failed to fetch trips with buses" });
+    //   }
+    // });
+
+    // Better version
+    // app.get("/api/trips/bus", async (req, res) => {
+    //   try {
+    //     const { origin, destination, departure } = req.query;
+    //     const pipeline = [];
+
+    //     // Build our match stage
+    //     const match = {};
+    //     if (origin) {
+    //       match.origin = { $regex: new RegExp(`^${origin.trim()}$`, "i") };
+    //     }
+    //     if (destination) {
+    //       match.destination = {
+    //         $regex: new RegExp(`^${destination.trim()}$`, "i"),
+    //       };
+    //     }
+    //     if (departure) {
+    //       const day = new Date(departure);
+    //       day.setHours(0, 0, 0, 0);
+    //       const nextDay = new Date(day);
+    //       nextDay.setDate(day.getDate() + 1);
+
+    //       match.departureTime = { $gte: day, $lt: nextDay };
+    //     }
+    //     if (Object.keys(match).length) {
+    //       pipeline.push({ $match: match });
+    //     }
+
+    //     // Join bus details
+    //     pipeline.push(
+    //       {
+    //         $addFields: { busObjectId: { $toObjectId: "$busId" } },
+    //       },
+    //       {
+    //         $lookup: {
+    //           from: "bus",
+    //           localField: "busObjectId",
+    //           foreignField: "_id",
+    //           as: "busDetails",
+    //         },
+    //       },
+    //       { $unwind: "$busDetails" },
+    //       { $sort: { departureTime: 1 } }
+    //     );
+
+    //     const trips = await tripCollection.aggregate(pipeline).toArray();
+    //     res.send(trips);
+    //   } catch (error) {
+    //     console.error("Aggregation error:", error);
+    //     res.status(500).send({ message: "Failed to fetch trips with buses" });
+    //   }
+    // });
 
     app.get("/api/trips/bus", async (req, res) => {
       try {
-        const trips = await tripCollection
-          .aggregate([
-            {
-              $addFields: {
-                busObjectId: { $toObjectId: "$busId" },
+        const { origin, destination, departure } = req.query;
+        const pipeline = [];
+    
+        // 1) Build a case-insensitive match on origin/destination
+        const match = {};
+        if (origin) {
+          match.origin = { $regex: new RegExp(`^${origin.trim()}$`, "i") };
+        }
+        if (destination) {
+          match.destination = { $regex: new RegExp(`^${destination.trim()}$`, "i") };
+        }
+        if (Object.keys(match).length) {
+          pipeline.push({ $match: match });
+        }
+    
+        // 2) If departure is passed (ISO string or just date), slice out YYYY-MM-DD
+        if (departure) {
+          const dateOnly = departure.slice(0, 10); // e.g. "2025-04-23"
+          pipeline.push({
+            $match: {
+              $expr: {
+                $eq: [
+                  {
+                    $dateToString: {
+                      format: "%Y-%m-%d",
+                      // convert your stored string to Date first
+                      date: { $toDate: "$departureTime" },
+                      timezone: "UTC",
+                    },
+                  },
+                  dateOnly,
+                ],
               },
             },
-            {
-              $lookup: {
-                from: "bus",
-                localField: "busObjectId",
-                foreignField: "_id",
-                as: "busDetails",
-              },
+          });
+        }
+    
+        // 3) Lookup and join bus details
+        pipeline.push(
+          { $addFields: { busObjectId: { $toObjectId: "$busId" } } },
+          {
+            $lookup: {
+              from: "bus",
+              localField: "busObjectId",
+              foreignField: "_id",
+              as: "busDetails",
             },
-            {
-              $unwind: "$busDetails",
-            },
-            {
-              $sort: { departureTime: 1 },
-            },
-          ])
-          .toArray();
-
+          },
+          { $unwind: "$busDetails" },
+          { $sort: { departureTime: 1 } }
+        );
+    
+        const trips = await tripCollection.aggregate(pipeline).toArray();
         res.send(trips);
-      } catch (error) {
-        console.error("Aggregation error:", error);
-        res.status(500).send({ message: "Failed to fetch trips with buses" });
+      } catch (err) {
+        console.error("Aggregation error:", err);
+        res
+          .status(500)
+          .send({ message: "Failed to fetch trips with buses", error: err.message });
       }
     });
+    
 
     // ! Trip Search
 
