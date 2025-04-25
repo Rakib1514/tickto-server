@@ -438,6 +438,53 @@ async function run() {
       res.send(result);
     });
 
+    //! get user and status wise trips
+    app.get("/api/trips", async (req, res) => {
+      const { userId, status } = req.query;
+
+      const query = {};
+
+      if (userId) {
+        query.organizerUid = userId;
+      }
+
+      if (status) {
+        query.status = status;
+      }
+
+      const trips = await tripCollection.find(query).toArray();
+      res.send(trips);
+    });
+
+    // update trip data by id. if only status is upcoming then update
+    app.patch("/api/trips/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedTrip = req.body;
+
+      if (!updatedTrip || Object.keys(updatedTrip).length === 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Trip data is required" });
+      }
+
+      const result = await tripCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedTrip }
+      );
+
+      if (result.modifiedCount > 0) {
+        res
+          .status(200)
+          .json({ success: true, message: "Trip updated successfully" });
+      } else if (result.matchedCount > 0 && result.modifiedCount === 0) {
+        res.status(200).json({ success: false, message: "Already up to date" });
+      } else {
+        res
+          .status(500)
+          .json({ success: false, message: "Failed to update trip" });
+      }
+    });
+    
     // ! Transport related api
 
     app.get("/api/trips/bus", async (req, res) => {
@@ -537,24 +584,6 @@ async function run() {
           error: err.message,
         });
       }
-    });
-
-    //! get user and status wise trips
-    app.get("/api/trips", async (req, res) => {
-      const { userId, status } = req.query;
-
-      const query = {};
-
-      if (userId) {
-        query.organizerUid = userId;
-      }
-
-      if (status) {
-        query.status = status;
-      }
-
-      const trips = await tripCollection.find(query).toArray();
-      res.send(trips);
     });
 
     // ! Trip Search
