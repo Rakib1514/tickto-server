@@ -440,70 +440,6 @@ async function run() {
 
     // ! Transport related api
 
-    // app.get("/api/trips/bus", async (req, res) => {
-    //   try {
-    //     const { origin, destination, departure } = req.query;
-    //     const pipeline = [];
-
-    //     const match = {};
-    //     if (origin) {
-    //       match.origin = { $regex: new RegExp(`^${origin.trim()}$`, "i") };
-    //     }
-    //     if (destination) {
-    //       match.destination = {
-    //         $regex: new RegExp(`^${destination.trim()}$`, "i"),
-    //       };
-    //     }
-    //     if (Object.keys(match).length) {
-    //       pipeline.push({ $match: match });
-    //     }
-
-    //     if (departure) {
-    //       const dateOnly = departure.slice(0, 10); // e.g. "2025-04-23"
-    //       pipeline.push({
-    //         $match: {
-    //           $expr: {
-    //             $eq: [
-    //               {
-    //                 $dateToString: {
-    //                   format: "%Y-%m-%d",
-    //                   // convert stored string to Date first
-    //                   date: { $toDate: "$departureTime" },
-    //                   timezone: "UTC",
-    //                 },
-    //               },
-    //               dateOnly,
-    //             ],
-    //           },
-    //         },
-    //       });
-    //     }
-
-    //     pipeline.push(
-    //       { $addFields: { busObjectId: { $toObjectId: "$busId" } } },
-    //       {
-    //         $lookup: {
-    //           from: "bus",
-    //           localField: "busObjectId",
-    //           foreignField: "_id",
-    //           as: "busDetails",
-    //         },
-    //       },
-    //       { $unwind: "$busDetails" },
-    //       { $sort: { departureTime: 1 } }
-    //     );
-
-    //     const trips = await tripCollection.aggregate(pipeline).toArray();
-    //     res.send(trips);
-    //   } catch (err) {
-    //     console.error("Aggregation error:", err);
-    //     res.status(500).send({
-    //       message: "Failed to fetch trips with buses",
-    //       error: err.message,
-    //     });
-    //   }
-    // });
-
     app.get("/api/trips/bus", async (req, res) => {
       try {
         const { origin, destination, departure } = req.query;
@@ -601,6 +537,24 @@ async function run() {
           error: err.message,
         });
       }
+    });
+
+    //! get user and status wise trips
+    app.get("/api/trips", async (req, res) => {
+      const { userId, status } = req.query;
+
+      const query = {};
+
+      if (userId) {
+        query.organizerUid = userId;
+      }
+
+      if (status) {
+        query.status = status;
+      }
+
+      const trips = await tripCollection.find(query).toArray();
+      res.send(trips);
     });
 
     // ! Trip Search
