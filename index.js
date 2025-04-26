@@ -1,11 +1,10 @@
 const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
-const jwt = require('jsonwebtoken');
 
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-
+const jwt = require("jsonwebtoken");
+const { MongoClient, ServerApiVersion, ObjectId, Admin } = require("mongodb");
 
 const app = express();
 
@@ -30,50 +29,50 @@ async function run() {
     const userCollection = client.db("tickto").collection("users");
     const eventsCollection = client.db("tickto").collection("events");
     const paymentsCollection = client.db("tickto").collection("payments");
+    const busCollection = client.db("tickto").collection("bus");
+    const tripCollection = client.db("tickto").collection("trips");
 
     //!jwt related API's
 
-    app.post('/jwt', async(req, res) => {
+    app.post("/jwt", async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.TOKEN_SECRET_KEY,
-        {expiresIn: '1h'});
+      const token = jwt.sign(user, process.env.TOKEN_SECRET_KEY, {
+        expiresIn: "1h",
+      });
       res.send({ token });
     });
 
-    //middlewares 
+    //middlewares
     const verifyToken = (req, res, next) => {
-      console.log('Inside verify token', req.headers.authorization);
-      if(!req.headers.authorization){
-        return res.status(401).send({ message: 'unauthorized access' });
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "unauthorized access" });
       }
-      const token = req.headers.authorization.split(' ')[1];
+      const token = req.headers.authorization.split(" ")[1];
       jwt.verify(token, process.env.TOKEN_SECRET_KEY, (err, decoded) => {
-        if(err){
-          return res.status(401).send({ message: 'unauthorized access' })
+        if (err) {
+          return res.status(401).send({ message: "unauthorized access" });
         }
         req.decoded = decoded;
         next();
-      })
-
-    }
+      });
+    };
 
     //use verify admin after verifyToken
-    
-    const verifyAdmin = async(req, res, next) => {
+
+    const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = {email: email};
+      const query = { email: email };
       const user = await userCollection.findOne(query);
-      const isAdmin = user?.role === 'admin';
-      if(!isAdmin){
-        return res.status(403).send({ message: 'forbidden access' });
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
       }
       next();
-    }
+    };
 
     // ! Users Related API's
 
     app.get("/api/users", verifyToken, verifyAdmin, async (req, res) => {
-      console.log(req.headers);
       try {
         const users = await userCollection.find({}).toArray();
         if (users.length > 0) {
@@ -116,20 +115,20 @@ async function run() {
       }
     });
 
-    app.get('/api/users/admin/:email', verifyToken, async(req, res) => {
+    app.get("/api/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      if(email !== req.decoded.email){
-        return res.status(403).send({ message: "forbidden access" })
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
       }
 
       const query = { email: email };
       const user = await userCollection.findOne(query);
       let admin = false;
-      if(user) {
-        admin = user?.role === 'admin';
+      if (user) {
+        admin = user?.role === "admin";
       }
       res.send({ admin });
-    })
+    });
 
     // Post User data to DB
     app.post("/api/users", async (req, res) => {
@@ -206,37 +205,48 @@ async function run() {
     });
 
     // Make admin user by uid
-    app.patch('/api/users/admin/:uid', verifyToken, verifyAdmin, async(req, res) => {
-      const id = req.params.uid;
-      const filter = { _id: new ObjectId(id) };
-      const updateUser = {
-        $set: {
-          role: 'admin'
-        }
+    app.patch(
+      "/api/users/admin/:uid",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.uid;
+        const filter = { _id: new ObjectId(id) };
+        const updateUser = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await userCollection.updateOne(filter, updateUser);
+        res.send(result);
       }
-      const result = await userCollection.updateOne(filter, updateUser);
-      res.send(result)
-    })
-
+    );
 
     // Delete user by uid
-    app.delete("/api/users/:uid", verifyToken, verifyAdmin, async (req, res) => {
-      try {
-        const uid = req.params.uid;
-        const result = await userCollection.deleteOne({ _id: new ObjectId(uid) });
+    app.delete(
+      "/api/users/:uid",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        try {
+          const uid = req.params.uid;
+          const result = await userCollection.deleteOne({
+            _id: new ObjectId(uid),
+          });
 
-        if (result.deletedCount > 0) {
-          res.json({ success: true, message: "User deleted successfully" });
-        } else {
-          res.status(404).json({ success: false, message: "User not found" });
+          if (result.deletedCount > 0) {
+            res.json({ success: true, message: "User deleted successfully" });
+          } else {
+            res.status(404).json({ success: false, message: "User not found" });
+          }
+        } catch (error) {
+          console.error("Error deleting user:", error);
+          res
+            .status(500)
+            .json({ success: false, message: "Internal server error" });
         }
-      } catch (error) {
-        console.error("Error deleting user:", error);
-        res
-          .status(500)
-          .json({ success: false, message: "Internal server error" });
       }
-    });
+    );
 
     // ! Events Related API's
 
@@ -408,8 +418,243 @@ async function run() {
       }
     });
 
+    // ! Bus Related api
 
+    app.post("/api/buses", async (req, res) => {
+      const busInfo = req.body;
+      const result = await busCollection.insertOne(busInfo);
+      res.send(result);
+    });
+
+    app.get("/api/buses/:uid", async (req, res) => {
+      const uid = req.params.uid;
+      const query = { organizerID: uid };
+      const buses = await busCollection.find(query).toArray();
+      res.send(buses);
+    });
+
+    // ! Trip Related apis
+
+    app.post("/api/trips", async (req, res) => {
+      const tripInfo = req.body;
+      const result = await tripCollection.insertOne(tripInfo);
+      res.send(result);
+    });
+
+    //! get user and status wise trips
+    app.get("/api/trips", async (req, res) => {
+      const { userId, status } = req.query;
+
+      const query = {};
+
+      if (userId) {
+        query.organizerUid = userId;
+      }
+
+      if (status) {
+        query.status = status;
+      }
+
+      const trips = await tripCollection.find(query).toArray();
+      res.send(trips);
+    });
+
+    // update trip data by id. if only status is upcoming then update
+    app.patch("/api/trips/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedTrip = req.body;
+
+      if (!updatedTrip || Object.keys(updatedTrip).length === 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Trip data is required" });
+      }
+
+      const result = await tripCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedTrip }
+      );
+
+      if (result.modifiedCount > 0) {
+        res
+          .status(200)
+          .json({ success: true, message: "Trip updated successfully" });
+      } else if (result.matchedCount > 0 && result.modifiedCount === 0) {
+        res.status(200).json({ success: false, message: "Already up to date" });
+      } else {
+        res
+          .status(500)
+          .json({ success: false, message: "Failed to update trip" });
+      }
+    });
     
+    // ! Transport related api
+
+    app.get("/api/trips/bus", async (req, res) => {
+      try {
+        const { origin, destination, departure } = req.query;
+        const now = new Date();
+
+        // 1) BULK‐UPDATE statuses before we read anything:
+        //    a) active  = departure ≤ now ≤ arrival
+        await tripCollection.updateMany(
+          {
+            $expr: {
+              $and: [
+                { $lte: [{ $toDate: "$departureTime" }, now] },
+                { $gte: [{ $toDate: "$arrivalTime" }, now] },
+              ],
+            },
+          },
+          { $set: { status: "active" } }
+        );
+        //    b) completed = arrival < now
+        await tripCollection.updateMany(
+          {
+            $expr: { $lt: [{ $toDate: "$arrivalTime" }, now] },
+          },
+          { $set: { status: "completed" } }
+        );
+        //    c) upcoming = departure > now
+        await tripCollection.updateMany(
+          {
+            $expr: { $gt: [{ $toDate: "$departureTime" }, now] },
+          },
+          { $set: { status: "upcoming" } }
+        );
+
+        // 2) Build your aggregation, only reading upcoming trips
+        const pipeline = [
+          // always start by only pulling upcoming
+          { $match: { status: "upcoming" } },
+        ];
+
+        // 3) Optional origin / destination filters (case-insensitive)
+        const match = {};
+        if (origin) {
+          match.origin = { $regex: new RegExp(`^${origin.trim()}$`, "i") };
+        }
+        if (destination) {
+          match.destination = {
+            $regex: new RegExp(`^${destination.trim()}$`, "i"),
+          };
+        }
+        if (Object.keys(match).length) pipeline.push({ $match: match });
+
+        // 4) Optional date-only departure filter
+        if (departure) {
+          const dateOnly = departure.slice(0, 10); // "YYYY-MM-DD"
+          pipeline.push({
+            $match: {
+              $expr: {
+                $eq: [
+                  {
+                    $dateToString: {
+                      format: "%Y-%m-%d",
+                      date: { $toDate: "$departureTime" },
+                      timezone: "UTC",
+                    },
+                  },
+                  dateOnly,
+                ],
+              },
+            },
+          });
+        }
+
+        // 5) Lookup busDetails & sort
+        pipeline.push(
+          { $addFields: { busObjectId: { $toObjectId: "$busId" } } },
+          {
+            $lookup: {
+              from: "bus",
+              localField: "busObjectId",
+              foreignField: "_id",
+              as: "busDetails",
+            },
+          },
+          { $unwind: "$busDetails" },
+          { $sort: { departureTime: 1 } }
+        );
+
+        // 6) Run and respond
+        const trips = await tripCollection.aggregate(pipeline).toArray();
+        res.send(trips);
+      } catch (err) {
+        console.error("Aggregation error:", err);
+        res.status(500).send({
+          message: "Failed to fetch trips with buses",
+          error: err.message,
+        });
+      }
+    });
+
+    // ! Trip Search
+
+    app.get("/api/location", async (req, res) => {
+      const { from, to } = req.query;
+
+      // Validate parameters
+      if (!from && !to) {
+        return res.status(400).send({
+          error: "Please provide either 'from' or 'to' parameter",
+        });
+      }
+
+      if (from && to) {
+        return res.status(400).send({
+          error: "Please provide only one parameter ('from' or 'to')",
+        });
+      }
+
+      // Determine search type and get search text
+      const searchType = from ? "from" : "to";
+      const searchText = from || to;
+      const field = searchType === "from" ? "origin" : "destination";
+
+      // Input validation
+      if (!searchText || searchText.trim().length < 2) {
+        return res.status(400).send({
+          error: `Please provide at least 2 characters for ${searchType}`,
+        });
+      }
+
+      // Sanitize input
+      const sanitizedSearch = searchText.replace(/[^\w\s]/gi, "");
+
+      try {
+        const pipeline = [
+          {
+            $match: {
+              [field]: {
+                $regex: `^${sanitizedSearch}`,
+                $options: "i",
+              },
+            },
+          },
+          {
+            $group: {
+              _id: `$${field}`, // Group by the field to get unique values
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              value: "$_id", // Rename _id to value
+            },
+          },
+          { $limit: 10 },
+        ];
+
+        const results = await tripCollection.aggregate(pipeline).toArray();
+
+        // Extract just the values from the results
+        res.send(results.map((item) => item.value));
+      } catch (error) {
+        console.error("Database error:", error);
+        res.status(500).send({ error: "Internal server error" });
+      }
+    });
 
     //
 
