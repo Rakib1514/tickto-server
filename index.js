@@ -70,7 +70,7 @@ async function run() {
       next();
     };
 
-    // ! Users Related API's
+    // * Users Related API's
 
     app.get("/api/users", verifyToken, verifyAdmin, async (req, res) => {
       try {
@@ -668,7 +668,7 @@ async function run() {
       amount: amount,
       currency: 'usd',
       payment_method_types: ['card'],
-    });
+    }); 
 
     res.send({
       clientSecret: paymentIntent.client_secret
